@@ -3,6 +3,7 @@ from __future__ import print_function
 from six.moves import xrange
 from ortools.constraint_solver import pywrapcp
 from ortools.constraint_solver import routing_enums_pb2
+import math
 
 ###########################
 # Problem Data Definition #
@@ -17,18 +18,6 @@ class Vehicle():
     def capacity(self):
         """Gets vehicle capacity"""
         return self._capacity
-#
-#class CityBlock():
-#    """City block definition"""
-#    @property
-#    def width(self):
-#        """Gets Block size West to East"""
-#        return 228/2
-#
-#    @property
-#    def height(self):
-#        """Gets Block size North to South"""
-#        return 80
 
 class DataProblem():
     """Stores the data for the problem"""
@@ -47,12 +36,10 @@ class DataProblem():
                  (22, 39), (10, 30),
                  (10, 18), (15, 15),
                  (10, 10), (20, 7),
-                 (25, 9),]
-#        # locations in meters using the city block dimension
-#        city_block = CityBlock()
-#        self._locations = [(
-#            loc[0]*city_block.width,
-#            loc[1]*city_block.height) for loc in locations]
+                 (25, 9)]
+        # locations in meters using the city block dimension
+        
+        self._locations = [(loc[0], loc[1]) for loc in locations]
 
         self._depot = 0
 
@@ -65,7 +52,7 @@ class DataProblem():
              7, 57,
              43, 15,
              15, 18,
-             9,]
+             9]
 
     @property
     def vehicle(self):
@@ -100,10 +87,10 @@ class DataProblem():
 #######################
 # Problem Constraints #
 #######################
-def manhattan_distance(position_1, position_2):
+
+def point_to_point_distance(position_1, position_2):
     """Computes the Manhattan distance between two points"""
-    return (abs(position_1[0] - position_2[0]) +
-            abs(position_1[1] - position_2[1]))
+    return (math.sqrt((position_1[0] - position_2[0])**2 +(position_1[1] - position_2[1])**2))
 
 class CreateDistanceEvaluator(object): # pylint: disable=too-few-public-methods
     """Creates callback to return distance between points."""
@@ -118,10 +105,7 @@ class CreateDistanceEvaluator(object): # pylint: disable=too-few-public-methods
                 if from_node == to_node:
                     self._distances[from_node][to_node] = 0
                 else:
-                    self._distances[from_node][to_node] = (
-                        manhattan_distance(
-                            data.locations[from_node],
-                            data.locations[to_node]))
+                    self._distances[from_node][to_node] = (point_to_point_distance(data.locations[from_node],data.locations[to_node]))
 
     def distance_evaluator(self, from_node, to_node):
         """Returns the manhattan distance between the two nodes"""
@@ -141,6 +125,7 @@ class CreateDemandEvaluator(object): # pylint: disable=too-few-public-methods
 def add_capacity_constraints(routing, data, demand_evaluator):
     """Adds capacity constraint"""
     capacity = "Capacity"
+    #Call from VRP library
     routing.AddDimension(
         demand_evaluator,
         0, # null capacity slack
@@ -179,15 +164,17 @@ class ConsolePrinter():
         # Inspect solution.
         total_dist = 0
         for vehicle_id in xrange(self.data.num_vehicles):
+            #Call from VRP library
             index = self.routing.Start(vehicle_id)
             plan_output = 'Route for vehicle {0}:\n'.format(vehicle_id)
             route_dist = 0
             route_load = 0
+            #Call from VRP library
             while not self.routing.IsEnd(index):
                 node_index = self.routing.IndexToNode(index)
                 next_node_index = self.routing.IndexToNode(
                     self.assignment.Value(self.routing.NextVar(index)))
-                route_dist += manhattan_distance(
+                route_dist += point_to_point_distance(
                     self.data.locations[node_index],
                     self.data.locations[next_node_index])
                 route_load += self.data.demands[node_index]
@@ -221,8 +208,7 @@ def main():
 
     # Setting first solution heuristic (cheapest addition).
     search_parameters = pywrapcp.RoutingModel.DefaultSearchParameters()
-    search_parameters.first_solution_strategy = (
-        routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC)
+    #search_parameters.first_solution_strategy = (routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC)
     # Solve the problem.
     assignment = routing.SolveWithParameters(search_parameters)
     printer = ConsolePrinter(data, routing, assignment)
